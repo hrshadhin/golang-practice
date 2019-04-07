@@ -1,12 +1,13 @@
 /**
 *
 * Simple key value store
-* Storage: in-memory
+* Storage: in disk file
  */
 package main
 
 import (
 	"bufio"
+	"encoding/gob"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +16,9 @@ import (
 // data storage map/ hash table
 // key is string and value is also string
 var dataStore = make(map[string]string)
+
+// data store file path
+var dataFile = "/tmp/skvs-dataFile.gob"
 
 //add new value to store
 func addValue(key string, value string) bool {
@@ -109,6 +113,45 @@ func message(text string, showGuide bool) {
 
 }
 
+// save data to disk file
+func saveToFile() error {
+	fmt.Println("Saving", dataFile)
+	err := os.Remove(dataFile)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	saveTo, err := os.Create(dataFile)
+	if err != nil {
+		fmt.Println("Can not create", dataFile)
+		return err
+	}
+	defer saveTo.Close()
+
+	encoder := gob.NewEncoder(saveTo)
+	err = encoder.Encode(dataStore)
+	if err != nil {
+		fmt.Println("Cannot save to", dataFile)
+		return err
+	}
+	return nil
+}
+
+// load data from file
+func loadFromFile() error {
+	fmt.Println("Loading", dataFile)
+	loadFrom, err := os.Open(dataFile)
+	defer loadFrom.Close()
+	if err != nil {
+		fmt.Println("Empty key/value store!")
+		return err
+	}
+
+	decoder := gob.NewDecoder(loadFrom)
+	decoder.Decode(&dataStore)
+	return nil
+}
+
 //welcome
 func welcome() {
 	fmt.Println("============= SKVS ===============")
@@ -135,7 +178,13 @@ func usage() {
 //main function
 func main() {
 	welcome()
+	err := loadFromFile()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	usage()
+
 	// init the scanner
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -150,6 +199,10 @@ func main() {
 		tokens := strings.Fields(text)
 		switch strings.ToUpper(tokens[0]) {
 		case "EXIT":
+			err := saveToFile()
+			if err != nil {
+				fmt.Println(err)
+			}
 			message("Thank you for using this program. :)", false)
 			return
 		case "PRINT":
